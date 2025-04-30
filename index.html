@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Okey Scores</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    .gold { background-color: gold !important; }
+    .silver { background-color: silver !important; }
+    .bronze { background-color: #cd7f32 !important; }
+    .score-badge { font-size: 1.2rem; }
+    .history-list { font-size: 0.9rem; max-height: 100px; overflow-y: auto; display: none; }
+    .results-card { max-height: 300px; overflow-y: auto; }
+    .input-group input, .input-group button {
+      font-size: 1rem;
+    }
+    .history-list li {
+      font-size: 0.85rem;
+    }
+    .expand-btn {
+      cursor: pointer;
+    }
+    .rules-section {
+      margin-top: 40px;
+      padding: 20px;
+      background-color: #f8f9fa;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .rules-section h3 {
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+      color: #495057;
+      text-align: center;
+    }
+    .rules-section ul {
+      list-style-type: decimal;
+      padding-left: 20px;
+      font-size: 1rem;
+    }
+    .rules-section li {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #e9ecef;
+      border-radius: 5px;
+      border-left: 5px solid #007bff;
+      transition: background-color 0.3s ease;
+    }
+    .rules-section li:hover {
+      background-color: #007bff;
+      color: white;
+    }
+    .rules-section li strong {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2 class="mb-0">🎮 Oyuncu Puan Takip Sistemi</h2>
+      <button id="resetScores" class="btn btn-warning">🔄 Yeni Tur Başlat</button>
+    </div>
+
+    <!-- Oyuncu Ekleme -->
+    <div class="input-group mb-4">
+      <input type="text" id="playerName" class="form-control" placeholder="Oyuncu Adı" aria-label="Oyuncu Adı">
+      <button id="addPlayer" class="btn btn-primary">Ekle</button>
+    </div>
+
+    <!-- Ana içerik: Oyuncular + Sonuçlar -->
+    <div class="row">
+      <!-- Oyuncu Kartları -->
+      <div class="col-12 col-md-8 mb-4">
+        <div class="row" id="playersList"></div>
+      </div>
+
+      <!-- Sıralama Kutusu -->
+      <div class="col-12 col-md-4">
+        <div class="card results-card">
+          <div class="card-header bg-dark text-white">
+            🏁 Sonuçlar
+          </div>
+          <ul class="list-group list-group-flush" id="rankingList">
+            <!-- Sıralama burada listelenecek -->
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Oyun Kuralları Bölümü -->
+    <div class="rules-section">
+      <h3>Oyun Kuralları</h3>
+      <ul>
+        <li><strong>Üçlü Erkek:</strong> Üç kişi ile yapılan erkek oyunları.</li>
+        <li><strong>Üçlü Seri:</strong> Aynı oyun serisi içinde üçlü kombinasyon.</li>
+        <li><strong>Bir Üçlü Seri ve Bir Üçlü Erkek:</strong> Hem üçlü seri hem de erkek oyunları.</li>
+        <li><strong>İki Üçlü Erkek:</strong> İki farklı üçlü erkek kombinasyonu.</li>
+        <li><strong>İki Üçlü Seri:</strong> İki farklı üçlü seri kombinasyonu.</li>
+        <li><strong>Bir Dörtlü Erkek:</strong> Dörtlü erkek kombinasyonu.</li>
+        <li><strong>Bir Dörtlü Seri:</strong> Dörtlü seri kombinasyonu.</li>
+        <li><strong>Bir Dörtlü Erkek ve Bir Dörtlü Seri:</strong> Hem dörtlü erkek hem de dörtlü seri kombinasyonu.</li>
+        <li><strong>İki Dörtlü Erkek:</strong> İki farklı dörtlü erkek kombinasyonu.</li>
+        <li><strong>İki Dörtlü Seri:</strong> İki farklı dörtlü seri kombinasyonu.</li>
+        <li><strong>Beşli Seri:</strong> Beş farklı oyun kombinasyonu ile yapılmış seri.</li>
+        <li><strong>4 Çift:</strong> Dört çift oyuncu kombinasyonu.</li>
+        <li><strong>Elden Bitme:</strong> Oyunun sona erdiği ve tüm oyuncuların bitirdiği oyun türü.</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <script>
+    let players = [];
+
+    function saveToStorage() {
+      localStorage.setItem("players", JSON.stringify(players));
+    }
+
+    function loadFromStorage() {
+      let stored = localStorage.getItem("players");
+      if (stored) {
+        try {
+          players = JSON.parse(stored);
+        } catch (e) {
+          players = [];
+        }
+      }
+    }
+
+    function updateRanking() {
+      // Puan sıralamasını artan şekilde yapıyoruz
+      const sortedPlayers = [...players].sort((a, b) => a.score - b.score); // Puanları artan sıraya göre
+      $('#rankingList').empty();
+
+      sortedPlayers.forEach((player, index) => {
+        // Sıralama listesi oluştur
+        const rankIcon = index === 0 ? '👑' : '';
+        $('#rankingList').append(`
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            ${rankIcon} ${index + 1}. ${player.name}
+            <span class="badge bg-secondary rounded-pill">${player.score}</span>
+          </li>
+        `);
+      });
+    }
+
+    function updatePlayerList() {
+      $('#playersList').empty();
+
+      players.forEach((player, index) => {
+        // Oyuncu kartı oluştur
+        let rankClass = '';
+        if (index === 0) rankClass = 'gold';
+        else if (index === 1) rankClass = 'silver';
+        else if (index === 2) rankClass = 'bronze';
+
+        let playerCard = $(`
+          <div class="col-12 col-md-6 mb-4">
+            <div class="card ${rankClass}">
+              <div class="card-body">
+                <div class="d-flex justify-content-between">
+                  <h5 class="card-title">${index + 1}. ${player.name}</h5>
+                  <button class="btn btn-sm btn-outline-danger removePlayer" title="Sil">✖</button>
+                </div>
+                <p>
+                  Puan: <span class="badge bg-dark score-badge">${player.score}</span>
+                </p>
+                <div class="input-group mb-2">
+                  <input type="number" class="form-control scoreInput" placeholder="+/- puan">
+                  <button class="btn btn-success addScore">Uygula</button>
+                </div>
+                <div class="expand-btn" onclick="toggleHistory(${player.id})">
+                  <strong>Puan Geçmişi:</strong>
+                  <span class="badge bg-info">Aç/Kapa</span>
+                </div>
+                <ul class="list-group history-list mt-2" id="history-${player.id}">
+                  ${player.history.reverse().map(p => `<li class="list-group-item py-1">${p >= 0 ? '+' : ''}${p}</li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          </div>
+        `);
+
+        // Puan ekleme
+        const input = playerCard.find('.scoreInput');
+        const applyBtn = playerCard.find('.addScore');
+
+        function applyScore() {
+          let val = parseInt(input.val());
+          if (isNaN(val)) return alert('Geçerli bir puan giriniz.');
+          player.score += val;
+          player.history.push(val);
+          saveToStorage();
+          updateRanking();  // Sadece sıralamayı güncelliyoruz
+          input.val('');  // Input alanını temizle
+
+          // Puan geçmişini güncelle
+          const historyList = $(`#history-${player.id}`);
+          historyList.empty();
+          player.history.reverse().forEach(p => {
+            historyList.append(`<li class="list-group-item py-1">${p >= 0 ? '+' : ''}${p}</li>`);
+          });
+        }
+
+        applyBtn.click(applyScore);
+        input.keypress(function (e) {
+          if (e.which === 13) applyScore();
+        });
+
+        // Oyuncu silme
+        playerCard.find('.removePlayer').click(function () {
+          if (confirm(`${player.name} adlı oyuncu silinsin mi? Bu işlem geri alınamaz.`)) {
+            players = players.filter(p => p.id !== player.id);
+            saveToStorage();
+            updatePlayerList(); // Oyuncu kartlarını güncel tut
+            updateRanking();  // Sonuçlar sıralamasını güncel tut
+          }
+        });
+
+        $('#playersList').append(playerCard);
+      });
+
+      updateRanking();  // Sayfa ilk yüklendiğinde sıralamayı göster
+    }
+
+    function addNewPlayer() {
+      let name = $('#playerName').val().trim();
+      if (!name) return alert('Oyuncu adı giriniz!');
+      players.push({
+        id: Date.now(),
+        name: name,
+        score: 0,
+        history: []
+      });
+      $('#playerName').val('');
+      saveToStorage();
+      updatePlayerList();
+    }
+
+    $('#addPlayer').click(addNewPlayer);
+    $('#playerName').keypress(function (e) {
+      if (e.which === 13) addNewPlayer();
+    });
+
+    $('#resetScores').click(function () {
+      if (players.length === 0) return;
+      if (confirm('Tüm oyuncular ve puanlar sıfırlanacak. Devam edilsin mi?')) {
+        players = [];
+        localStorage.removeItem("players");
+        updatePlayerList();  // Kartları sıfırladık
+        updateRanking();  // Sıfırlama sonrası sonuçları güncel tut
+      }
+    });
+
+    function toggleHistory(playerId) {
+      const historyList = $(`#history-${playerId}`);
+      historyList.toggle();
+    }
+
+    $(document).ready(function () {
+      loadFromStorage();
+      updatePlayerList();
+    });
+  </script>
+</body>
+</html>
